@@ -1,0 +1,11 @@
+@relation sample
+
+@attribute att1 {1,2,3,4}
+@attribute att2 {1,2,3,4}
+@attribute att3 {1,2,3,4}
+@attribute att4 {1,2,3}
+@attribute att5 {1,2,3}
+@attribute att6 {1,2,3}
+@attribute class {0,1}
+
+@data

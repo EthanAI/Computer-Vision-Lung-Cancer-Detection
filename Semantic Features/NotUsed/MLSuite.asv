@@ -1,0 +1,299 @@
+function [ classValue, errorRate, errorHeaders, confusionMatrix, sens, spec  ] = MLSuite(X, Y, settings)
+%MLSuite Runs all the machine learning methods on the X and Y matrices
+%given using the set of options given
+
+categories = settings.categories;
+numCategories = length(categories);
+
+clError         = zeros(1, numCategories); %To hold classification success/error rates
+clHeader        = cell(1,1);
+
+classValue = 0;
+errorRate = 0;
+errorHeaders = 0;
+confusionMatrix = 0;
+sens = 0;
+spec = 0;
+
+%Redo so all learning done with same training samples? 
+%Temp eliminating all types except ave to rounded ave and using same train
+%set for each. 
+
+option = 3; %Real regression
+
+classValue = zeros(size(X,1), numCategories, 1);
+%-------------------------------------------------------------------
+% Standard Learning
+%-------------------------------------------------------------------
+if settings.doLearning == 1
+    if settings.doTrees == 1
+        %-------------------------------------------------------------------
+        % Decion tree learning
+        %-------------------------------------------------------------------
+        %fprintf('\nDecision tree learning as if all data are from different nodules\n');
+        %j = 1;
+        %clHeader = {'DT 1 to 1'};
+        %for i = 1:numCategories
+        %    fprintf('Learning and evaluating success on category: %s\t\t', str2mat(categories(i)));
+        %    [classValue(:,i),1, clError(j,i)] = decisionTreeLearning(Xraw, Yraw, i, 0);
+        %    fprintf('Error: %f\n', clError(j,i));
+        %end
+                
+        %fprintf('\nDecision tree learning from mean of each group\n'); %has zero biases in the X matrix
+        %clHeader = vertcat(clHeader, {'DT Group to Mean'});
+        %for i = 1:numCategories
+        %    fprintf('Learning and evaluating success on category: %s\t\t', str2mat(categories(i)));
+        %    [dtClassValue(:,i), errorVector(i)] = decisionTreeLearning(Xgrouped, Yaverage, i, 1);
+        %    fprintf('Error: %f\n', errorVector(i));
+        %end
+        %clError = vertcat(clError, errorVector);
+        %classValue = cat(3, classValue, dtClassValue);
+        
+        fprintf('\nDecision tree learning from mean of each group vs mean of features \n');
+        clHeader = vertcat(clHeader, {'DT Mean to Mean'});
+        errorVector = zeros(1, numCategories);
+        for i = 1:numCategories
+            fprintf('Learning and evaluating success on category: %s\t\t', str2mat(categories(i)));
+            [dtClassValue(:,i), errorVector(i)] = dtLearning(X, Y, i);
+            fprintf('Error: %f class Success %f\n', errorVector(i), GetClassSuccessRate(dtClassValue(:,i), Y(:,i)) );
+        end
+        clError = vertcat(clError, errorVector);
+        classValue = cat(3, classValue, dtClassValue);
+    end
+    %-------------------------------------------------------------------
+    % Neural Network Learning
+    %-------------------------------------------------------------------
+    if settings.doNN == 1
+        fprintf('\nNeural Network training.\n');
+        clHeader = vertcat(clHeader, {'NN'});
+        %option = 0; %vector regression
+        %for i = 1:numCategories
+        %    fprintf('Learning and evaluating success on category: %s ', str2mat(categories(i)));
+        %    nnEvaluation(i) = nnLearning(Xgrouped, Ygrouped, i, option);
+        %    fprintf('RMS: %.4f\n', nnEvaluation(i).Eout);
+        %end
+        
+        errorVector = zeros(1, numCategories);
+        for i = 1:numCategories
+            fprintf('NN on category: %s ', str2mat(categories(i)));
+            [nnClassValue(:,i), errorVector(i)] = nnLearning(X, Y, settings.hiddenLayer, i);
+            fprintf('\t\tAverage Error: %.4f Class Success %f\n', errorVector(i), GetClassSuccessRate(nnClassValue(:,i), Y(:,i)) );
+            %fprintf('Average Error: %.4f Pstdev: %.4f\n', nnEvaluation(i).Eout, nnEvaluation(i).sigmaOut);
+        end
+        clError = vertcat(clError, errorVector);
+        classValue = cat(3, classValue, nnClassValue); 
+    end
+
+    %-------------------------------------------------------------------
+    % SVM Learning
+    %-------------------------------------------------------------------
+    %Yeah boooy, multiclass SVMs are go
+    if settings.doSVM
+        fprintf('Performing SVM learning\n');
+        kernel = 'polynomial'; %Kernel method used 'mlp'
+        %'polyorder' 
+        
+        svmError = zeros(1, numCategories);
+        svmErrorDelta = zeros (3, numCategories);
+        for testCat = 1:numCategories 
+            fprintf('Learning on category %d %s\n', testCat, categories{testCat});
+ 
+            [svmClassValue(:,(testCat),1), svmError(testCat), svmConfusionMatrix(:,:,(testCat)), svmSens(testCat,:), svmSpec(testCat,:) ] ...
+                = SVMMultiBagged(X, round(Y(:,testCat)), settings.kernel, settings.minVote, settings.maxIter);
+            fprintf('Broken clock accuracy: %.1f\n', settings.histos(testCat,7) * 100); 
+            fprintf('SVM method 2 error rate: %.1f\n\n', svmError(testCat));
+            svmError(1,testCat) = svmError(testCat);
+        end
+        %svmError = vertcat(svmError, settings.histos(:,7)' * 100);
+        for i = 1:size(svmError,1)
+            svmErrorDelta(i,:) = svmError(i,:) - (100 - (settings.histos(:,7)' * 100));
+        end
+        %Copy to the outgoing variables
+        classValue = cat(3, classValue(:,:,1), svmClassValue);
+        clError = vertcat(clError, svmError);
+        clHeader = vertcat(clHeader, {'SVM'});%Need to be altered to mesh with other ml types data
+        confusionMatrix = svmConfusionMatrix;
+        sens = svmSens;
+        spec = svmSpec;
+        clear kernel minVote maxIter
+    end
+    
+    
+    %-------------------------------------------------------------------
+    % Bayesian Learning
+    %-------------------------------------------------------------------
+    if settings.doBayes    
+        fprintf('\nNaieve Bayes Learning.\n');
+        clHeader = vertcat(clHeader, {'Bayes'});        
+        errorVector = zeros(1, numCategories);
+        
+        for i = 1:numCategories
+            fprintf('Bayes on category: %s ', str2mat(categories(i)));
+            [bayesClassValue(:,i), errorVector(i)] = bayesLearning(X, Y, i);
+            fprintf('\t\tAverage Error: %.4f Class Success %f\n', errorVector(i), GetClassSuccessRate(bayesClassValue(:,i), Y(:,i)) );
+        end
+        clError = vertcat(clError, errorVector);
+        classValue = cat(3, classValue, nnClassValue); 
+    end
+
+    %-------------------------------------------------------------------
+    % Ensemble Learning
+    %-------------------------------------------------------------------
+    if settings.doBagging == 1
+        %-------------------------------------------------------------------
+        % Bagging
+        %-------------------------------------------------------------------
+        fprintf('\nPerforming Bagging\n');
+
+        %fprintf('Bagging as if all data are from different nodules\n');
+        %clHeader = vertcat(clHeader, {'Bagging 1 to 1'});
+        %for i = 1:numCategories
+        %    fprintf('Learning and evaluating success on category: %s\n', str2mat(categories(i)));
+        %    tBag = TreeBagger(settings.numTrees, Xraw, Yraw(:,i), 'OOBPred', 'on', 'NPrint', 10);
+        %    errorArray = oobError(tBag);
+        %    errorVector(i) = errorArray(end);
+        %    fprintf('Error: %f\n', errorVector(i));
+            
+       %     bagClassValue(:,i) = predict(tBag, Xraw(trainRows,i));
+
+        %    if settings.doPlot == 1
+                %plot the change. Real slow so might as well look at something
+       %         figure;
+       %         plot(oobError(tBag));
+       %         xlabel('number of grown trees');
+       %         ylabel('out-of-bag classification error');
+       %         title(str2mat(categories(i)));
+       %     end
+       % end
+       % clError = vertcat(clError, errorVector);
+
+       % fprintf('\nBagging the mean of each group\n'); %zero bias
+       % clHeader = vertcat(clHeader, {'Bagging Group to Mean'});
+       % for i = 1:numCategories
+       %     fprintf('Learning and evaluating success on category: %s\n', str2mat(categories(i)));
+       %     %tBag = TreeBagger(numTrees, Xaverage, Yaverage(:,i), 'method', 'regression', 'OOBPred', 'on', 'NPrint', 10);
+       %     tBag = TreeBagger(settings.numTrees, Xgrouped, round(Yaverage(:,i)), 'OOBPred', 'on', 'NPrint', 10);
+       %     errorArray = oobError(tBag);
+       %     errorVector(i) = errorArray(end);
+       %     fprintf('Error: %f\n', errorVector(i));
+       %     
+       %     bagClassValue(:,i) = predict(tBag, Xraw(trainRows,i));
+
+       %     if settings.doPlot == 1
+       %         %plot the change. Real slow so might as well look at something
+       %         figure;
+       %         plot(oobError(tBag));
+       %         xlabel('number of grown trees');
+       %         ylabel('out-of-bag classification error');
+       %         title(str2mat(categories(i)));
+       %     end
+       % end
+       % clError = vertcat(clError, errorVector);
+
+        fprintf('\nBagging the mean of each group vs mean of features\n'); 
+        clHeader = vertcat(clHeader, {'Bagging Mean to Mean'});
+        if option == 3 %Really do regression
+            for i = 1:numCategories
+                fprintf('Learning and evaluating success on category: %s\n', str2mat(categories(i)));
+                tBag = TreeBagger(settings.numTrees, X, Y(:,i), 'method', 'regression', 'OOBPred', 'on', 'NPrint', 25);% , 'minleaf', 15);
+                %tBag = TreeBagger(settings.numTrees, X, round(Y(:,i)), 'OOBPred', 'on', 'NPrint', 10);
+                %errorArray = oobError(tBag);
+                %errorVector(i) = errorArray(end);
+
+                %bagClassValue(:,i) = predict(tBag, X); %tBag consists of
+                %trees that don't apply to all data. Some trees were
+                %trained with certain points! Therefore not all trees can
+                %be applied to each observation. 
+                bagClassValue(:,i) = oobPredict(tBag);
+                errorVector(i) = RMSE(bagClassValue(:,i), Y(:,i));
+                fprintf('Error: %f classSuccess %f\n', errorVector(i), GetClassSuccessRate(bagClassValue(:,i), Y(:,i)) );
+                %For regression bagClassProb is just the standard
+                    %deviation across all the trees, so its kind of an
+                    %indication
+                if settings.doPlot == 1
+                    %plot the change. Real slow so might as well look at something
+                    figure;
+                    plot(oobError(tBag));
+                    xlabel('number of grown trees');
+                    ylabel('out-of-bag regression error');
+                    title(str2mat(categories(i)));
+                end
+            end
+            clError = vertcat(clError, errorVector);
+            classValue = cat(3, classValue, bagClassValue);
+            
+        else
+            for i = 1:numCategories
+            fprintf('***Obsolete code. Learning and evaluating success on category: %s\n', str2mat(categories(i)));
+            %tBag = TreeBagger(numTrees, Xaverage, Yaverage(:,i), 'method', 'regression', 'OOBPred', 'on', 'NPrint', 10);
+            tBag = TreeBagger(settings.numTrees, X, round(Y(:,i)), 'OOBPred', 'on', 'NPrint', 10);
+            errorArray = oobError(tBag);
+            errorVector(i) = errorArray(end);
+            fprintf('Error: %f\n', errorVector(i));
+            
+            [bagClassValue(:,i), bagClassProb(:,i)] = str2num(cell2mat(predict(tBag, X))); 
+
+            if settings.doPlot == 1
+                %plot the change. Real slow so might as well look at something
+                figure;
+                plot(oobError(tBag));
+                xlabel('number of grown trees');
+                ylabel('out-of-bag classification error');
+                title(str2mat(categories(i)));
+            end
+        end
+        clError = vertcat(clError, errorVector);
+        classValue = cat(3, classValue, bagClassValue);
+        end
+    end
+end
+
+%-------------------------------------------------------------------
+% Compile results
+%-------------------------------------------------------------------
+%clError = horzcat(clError, mean(clError, 2));
+%bagError = horzcat(bagError, mean(bagError, 2));
+%nnError = horzcat(nnError, mean(nnError, 2));
+%allErrors = vertcat(clError, bagError);
+%allErrors = vertcat(allErrors, nnError);
+%averageError = [mean(clError, 2);mean(bagError, 2);mean(nnError, 2)];
+errorRate = clError(2:end,:);
+errorHeaders = clHeader(2:end);
+classValue = classValue(:,:,2:end);
+
+%-------------------------------------------------------------------
+% investigate metafeatures
+%-------------------------------------------------------------------
+if(settings.runMeta == 1)
+    %investigate metafeatures
+    %build array of the ratings blocks (before 0s are added)
+    allRatings = cell(16555,1);
+    j = 1;
+    i = 1;
+    while(i <= size(datax,1))
+        rating = GetRadiologistsRatings(datax, i);
+        allRatings{j} = rating;
+        %fprintf('Size %d start %d finish %d i %d t %d next %d name %s\n', rating.totalRatings, rating.rows(1), rating.rows(2), i, rating.totalRatings, i + ratings.totalRatings, rating.noduleID); 
+        i = i + rating.totalRatings;
+        j = j + 1;
+    end
+
+    %compare stdevs 
+    %stdevList try this? sum((patient(1,1,2).test));Similarly, add all the billing fields in the patient array total = sum([patient.billing]);
+    for i = 1:size(allRatings,1)
+        stdevList(i,:) = allRatings{i}.stdev;
+    end
+    metaFeatures.stdev = mean(stdevList); %Average stdev for each of the 4 ratings
+end
+
+
+%[ classValue, errorRate, errorHeaders, confusionMatrix, sens, spec  ]
+
+
+%clear unecessary data
+%clear rebuildMatrices reloadFeatures minAgreement doLearning doTrees doBagging doNN  ...
+%    doSVM  doPlot  doSave numTrees errorVector i testCat runMeta row numCategories ...
+%    categories j option tBag newRowOrder nnError
+
+
+

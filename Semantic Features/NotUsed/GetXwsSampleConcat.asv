@@ -1,0 +1,9 @@
+function [XwsSampleConcat, YSampleConcat] = GetXwsSampleConcat(X, Y, numSegments)
+
+newWidth = size(X,2) / numSegments;
+
+for i = 2:numSegments
+    XwsSampleConcat = vertcat(XwsSampleConcat, X(:,(
+
+
+end

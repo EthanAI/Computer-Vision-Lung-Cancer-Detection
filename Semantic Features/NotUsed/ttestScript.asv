@@ -1,0 +1,66 @@
+%ttesting
+
+%ttest((round(rtClassValue(:,7,2)) == round(Yaverage(:,7))), (round(wsClassValue(:,7,2)) == round(Yaverage(:,7))))
+%Better on the final ensemble
+%2 sample t test right? 
+%Normality test? [a b c d ] =kstest(round(rtEnsPred(:,i)) == Yaverage(:,i))
+
+%We want to do a one tail test. We only care if the ws is better or equal
+%to rt (for now) vs ws being worse than rt. Therefore null hypothesis will
+%be that wsAcc >= rtAcc (> comes from the one tail and exclusion).
+%Alternative hypothesis will be wsAcc < rtAcc 
+%'tail', 'left' Set the alternative hypothesis to be that the population mean of x is less than the population mean of y.
+%make x = wsAcc and y = rtAcc
+%Accepting the null hypothesis is success (Answer = 0. p >= 0.05)
+%Rejecting the null hypothesis is failure (Meaning that wsAcc < rtAcc)
+
+
+%dirty code. Overwrites the data
+%for i = 1: 7
+%    pwsEns(i) =  isGreaterorEqualTTest(wsEnsPred(:,i), rtEnsPred(:,i), Yaverage(:,i), Yaverage(:,i));
+%end
+
+%for i = 1: 7
+%    pwsSConcatEns(i) =  isGreaterorEqualTTest(wsSConcatEnsPred(:,i), rtEnsPred(:,i), YwsMulti(:,i), Yaverage(:,i));
+%end
+
+%for i = 1:7
+%    for j = 1:3
+%        pws(j,i) =  isGreaterorEqualTTest(wsClassValue(:,i,j), rtClassValue(:,i,j), Yaverage(:,i), Yaverage(:,i));
+%    end
+%end
+
+%for i = 1:7
+%    for j = 1:3
+%        pwsSConcat(j,i) =  isGreaterorEqualTTest(wsSConcatClassValue(:,i,j), rtClassValue(:,i,j), YwsMulti(:,i), Yaverage(:,i));
+%    end
+%end
+
+%for i = 1:7
+%    for j = 1:3
+%        pwsSConcat(j,i) =  isGreaterorEqualTTest(wsSConcatClassValue(:,i,j), rtClassValue(:,i,j), YwsMulti(:,i), Yaverage(:,i));
+%    end
+%end
+
+for i = 1:numCategories
+    pwsMultiEnsGreater(i) =  isGreaterTTest(wsMultiEnsPred(:,i), rtEnsPred(:,i), Yaverage(:,i), Yaverage(:,i)); %low p means greater greater (not less)
+    
+    pwsMultiEnsNotLess(i) = isNotLessTTest(wsMultiEnsPred(:,i), rtEnsPred(:,i), Yaverage(:,i), Yaverage(:,i)); %high P means not less than
+    pwsMultiEnsEqual(i) = isSameTTest(wsMultiEnsPred(:,i), rtEnsPred(:,i), Yaverage(:,i), Yaverage(:,i)); %high p means equal
+end
+
+
+wsMultiEnsImprovement = wsMultiEnsSuccess - rtEnsSuccess;
+[wsMultiEnsImprovement;pwsMultiEns;pwsMultiEns<0.05];
+
+%T test notes:
+%Three types of t tests
+%One Sample - If we already have a known (Iron Clad) value from other experiments and
+%want to know if this experiment produced a differing result. - Nope
+%Paired Two Sample - if you are testing the same guys but after changing
+%something. Is this us? Same photos, different processing.
+%Independant Two Sample - Probably us?
+%a = Yes or no. uselsess
+%b = probability they are the same. Lower is better. Less that 0.05 is good
+%c = Confidence Interval. 
+%d = tstat, the raw T value. df Degrees of Freedom. sd - standar deviation.
