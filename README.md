@@ -5,6 +5,7 @@ This code is part of the 2013 REU with Depaul University and University of Chica
 The image processing code was lead by Patrick Stein. 
 The machine learning code was lead by Ethan Smith.
 The results of this research were published at the 2013 International Conference on Machine Learning Applications.
+Paper can be found at http://ieeexplore.ieee.org/xpl/login.jsp?tp=&arnumber=6786163&url=http%3A%2F%2Fieeexplore.ieee.org%2Fxpls%2Fabs_all.jsp%3Farnumber%3D6786163
 
 This code makes an alteration in the process of diagnosing lung cancer nodules. The typical process is as follows:
 -The human expert (radiologist) reviews the CT scan and identifies the presence/absense of nodules.
